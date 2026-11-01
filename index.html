@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mini WhatsApp WebRTC</title>
+
+<!-- Firebase SDK Compat -->
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #111b21;
+  color: #e9edef;
+  height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.app-container {
+  width: 98%;
+  max-width: 1200px;
+  height: 92vh;
+  background: #111b21;
+  display: flex;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  border: 1px solid #222d34;
+}
+
+/* Sidebar */
+.sidebar {
+  width: 340px;
+  background: #111b21;
+  border-right: 1px solid #222d34;
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-header {
+  background: #202c33;
+  padding: 15px;
+  border-bottom: 1px solid #222d34;
+}
+
+.user-profile {
+  font-weight: bold;
+  color: #00a884;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+.add-contact-box {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.add-contact-box input {
+  flex: 1;
+  padding: 8px 12px;
+  background: #2a3942;
+  border: 1px solid #222d34;
+  color: white;
+  border-radius: 8px;
+  outline: none;
+}
+
+.add-contact-box button {
+  background: #00a884;
+  color: #111b21;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.add-contact-box button:hover {
+  background: #06cf9c;
+}
+
+.contact-list {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.contact-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 15px;
+  border-bottom: 1px solid #222d34;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.contact-item:hover, .contact-item.active {
+  background: #2a3942;
+}
+
+.avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: #00a884;
+  color: #111b21;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 18px;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.avatar.group {
+  background: #6b21a8;
+  color: white;
+}
+
+.contact-info { flex: 1; overflow: hidden; }
+.contact-name { font-weight: bold; color: #e9edef; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.contact-id { font-size: 12px; color: #8696a0; }
+
+/* Chat Window */
+.chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: #0b141a;
+  position: relative;
+}
+
+.chat-header {
+  background: #202c33;
+  padding: 12px 15px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #222d34;
+  justify-content: space-between;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chat-title-text {
+  font-weight: bold;
+  color: #e9edef;
+  font-size: 16px;
+}
+
+.chat-subtitle {
+  font-size: 12px;
+  color: #8696a0;
+}
+
+.header-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.messages-area {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.message-bubble {
+  max-width: 65%;
+  padding: 9px 14px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  word-wrap: break-word;
+  position: relative;
+}
+
+.message-bubble.sent {
+  align-self: flex-end;
+  background: #005c4b;
+  color: #e9edef;
+  border-top-right-radius: 0;
+}
+
+.message-bubble.received {
+  align-self: flex-start;
+  background: #202c33;
+  color: #e9edef;
+  border-top-left-radius: 0;
+}
+
+.message-sender {
+  font-size: 11px;
+  font-weight: bold;
+  color: #00a884;
+  margin-bottom: 3px;
+}
+
+/* Chat Input Area */
+.chat-input-area {
+  background: #202c33;
+  padding: 12px 15px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  position: relative;
+}
+
+.chat-input-area input {
+  flex: 1;
+  padding: 11px 15px;
+  background: #2a3942;
+  border: none;
+  border-radius: 8px;
+  outline: none;
+  font-size: 15px;
+  color: white;
+}
+
+.chat-input-area button, .icon-btn {
+  background: #00a884;
+  color: #111b21;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.icon-btn {
+  padding: 10px;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+}
+
+.icon-btn:hover { background: #06cf9c; }
+
+/* Emoji Picker Popup */
+.emoji-picker {
+  position: absolute;
+  bottom: 65px;
+  left: 15px;
+  background: #202c33;
+  border: 1px solid #222d34;
+  border-radius: 8px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 8px;
+  font-size: 20px;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+  z-index: 10;
+}
+
+.emoji-picker span {
+  cursor: pointer;
+  text-align: center;
+  padding: 4px;
+  border-radius: 4px;
+}
+
+.emoji-picker span:hover { background: #2a3942; }
+
+/* Modales */
+.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.modal-card {
+  background: #202c33;
+  padding: 24px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+}
+
+.modal-card h2, .modal-card h3 { color: #00a884; margin-bottom: 12px; }
+.modal-card input { width: 100%; padding: 10px; margin: 8px 0; background: #2a3942; border: 1px solid #222d34; color: white; border-radius: 8px; }
+.modal-card button { width: 100%; padding: 10px; background: #00a884; color: #111b21; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; margin-top: 10px; }
+
+.group-members-list {
+  max-height: 150px;
+  overflow-y: auto;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.member-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #2a3942;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.color-picker-btn {
+  background: #2a3942;
+  color: white;
+  border: 1px solid #222d34;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.color-picker-btn input { display: none; }
+</style>
+</head>
+
+<body>
+
+<!-- Modal Inicio de Sesión -->
+<div id="loginModal" class="modal-overlay">
+  <div class="modal-card" style="text-align: center;">
+    <h2>💬 Mini WhatsApp</h2>
+    <p style="color: #8696a0; margin-bottom: 12px;">Escribe tu usuario para conectarte:</p>
+    <input id="myUsernameInput" placeholder="Tu nombre..." maxlength="20">
+    <button id="startAppBtn">Entrar a chatear</button>
+  </div>
+</div>
+
+<!-- Modal Crear Grupo -->
+<div id="createGroupModal" class="modal-overlay" style="display: none;">
+  <div class="modal-card">
+    <h3>👥 Crear Grupo Nuevo</h3>
+    <input id="groupNameInput" placeholder="Nombre del Grupo...">
+    <p style="font-size: 12px; color: #8696a0; margin-top: 10px;">Selecciona integrantes:</p>
+    <div id="groupMembersList" class="group-members-list"></div>
+    <div style="display: flex; gap: 8px;">
+      <button id="saveGroupBtn">Crear</button>
+      <button id="cancelGroupBtn" style="background: #2a3942; color: white;">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Llamada Entrante -->
+<div id="incomingCallModal" class="modal-overlay" style="display: none;">
+  <div class="modal-card" style="text-align: center;">
+    <h2 id="incomingCallTitle">📞 Llamada Entrante</h2>
+    <p id="incomingCallCaller" style="font-size: 16px; margin: 10px 0; color: #00a884;"></p>
+    <div style="display: flex; gap: 12px; margin-top: 20px;">
+      <button id="acceptCallBtn" style="background: #22c55e; color: white;">Aceptar</button>
+      <button id="rejectCallBtn" style="background: #ef4444; color: white;">Rechazar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Llamada Activa / Videollamada -->
+<div id="activeCallModal" class="modal-overlay" style="display: none;">
+  <div class="modal-card" style="width: 90vw; max-width: 900px; background: #111b21;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+      <h3 id="callStatusText" style="color: #00a884;">Llamada activa...</h3>
+      <span id="callTimer" style="font-family: monospace; font-size: 16px;">00:00</span>
+    </div>
+
+    <!-- Layout de Vídeo / Participantes -->
+    <div id="videoGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; max-height: 60vh; overflow-y: auto; background: #000; padding: 12px; border-radius: 8px;">
+      <div style="position: relative; background: #202c33; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center;">
+        <video id="localVideo" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+        <span style="position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Tú</span>
+      </div>
+    </div>
+
+    <!-- Controles de Llamada -->
+    <div style="display: flex; justify-content: center; gap: 16px; margin-top: 16px;">
+      <button id="toggleMicBtn" class="icon-btn" style="background: #202c33; color:white;" title="Silenciar micrófono">🎙️</button>
+      <button id="toggleCamBtn" class="icon-btn" style="background: #202c33; color:white;" title="Encender/Apagar cámara">📷</button>
+      <button id="hangupBtn" style="background: #ef4444; color: white; width: auto; padding: 10px 24px; border-radius: 20px;">🔴 Colgar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Layout Principal -->
+<div class="app-container">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div id="myProfileText" class="user-profile">Mi Perfil: -</div>
+      
+      <div class="add-contact-box">
+        <input id="addContactInput" placeholder="Nombre de usuario...">
+        <button id="addContactBtn">＋ Contacto</button>
+      </div>
+
+      <button id="openGroupModalBtn" style="width:100%; background: #2a3942; color: #00a884; border: 1px solid #222d34; padding: 8px; border-radius: 8px; font-weight: bold; cursor: pointer;">
+        👥 Crear Grupo
+      </button>
+    </div>
+    
+    <div id="contactList" class="contact-list"></div>
+  </div>
+
+  <div id="chatWindow" class="chat-window">
+    <div class="chat-header">
+      <div class="header-left">
+        <div id="activeContactAvatar" class="avatar" style="display:none">?</div>
+        <div>
+          <div id="activeContactName" class="chat-title-text">Selecciona un chat</div>
+          <div id="activeContactSub" class="chat-subtitle"></div>
+        </div>
+      </div>
+      
+      <div class="header-tools">
+        <button id="audioCallBtn" class="color-picker-btn" title="Llamada de voz" style="display:none; background:#00a884; color:#111b21; border:none; font-weight:bold;">📞 Audio</button>
+        <button id="videoCallBtn" class="color-picker-btn" title="Videollamada" style="display:none; background:#00a884; color:#111b21; border:none; font-weight:bold;">📹 Video</button>
+
+        <label class="color-picker-btn">
+          🎨 Fondo
+          <input type="color" id="bgColorPicker" value="#0b141a">
+        </label>
+        <span id="connectionStatus" style="color: #00a884; font-size: 12px; font-weight: bold;"></span>
+      </div>
+    </div>
+
+    <!-- Messages Display -->
+    <div id="messagesArea" class="messages-area"></div>
+
+    <!-- Emoji Picker Box -->
+    <div id="emojiPicker" class="emoji-picker" style="display: none;">
+      <span>😀</span><span>😂</span><span>😍</span><span>👍</span><span>❤️</span><span>🔥</span>
+      <span>🎉</span><span>😎</span><span>🙏</span><span>✨</span><span>🙈</span><span>🚀</span>
+    </div>
+
+    <!-- Chat Input Controls -->
+    <div class="chat-input-area">
+      <button id="emojiToggleBtn" class="icon-btn" style="background:#2a3942; color:white;">😀</button>
+      <input id="messageInput" placeholder="Escribe un mensaje..." disabled>
+      <button id="recordAudioBtn" class="icon-btn" style="background:#2a3942; color:white;" title="Grabar Audio" disabled>🎙️</button>
+      <button id="sendMessageBtn" disabled>Enviar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// Selector global universal (definido al inicio del script)
+const $ = id => document.getElementById(id);
+
+const firebaseConfig = {
+  apiKey: "AIzaSyD7Motd_mNxIq_MUb5WwYkE9zAL_h82Xr0",
+  authDomain: "mini-chat-5b28f.firebaseapp.com",
+  projectId: "mini-chat-5b28f",
+  storageBucket: "mini-chat-5b28f.firebasestorage.app",
+  messagingSenderId: "663713695539",
+  appId: "1:663713695539:web:f1328949af926808ba2046",
+  measurementId: "G-0LDVR12CMM"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+let myName = "";
+let activeChat = null; // Objeto { id, name, isGroup, members }
+let unsubscribeMessages = null;
+let mediaRecorder = null;
+let audioChunks = [];
+
+// Variables Estado WebRTC
+let localStream = null;
+let peerConnections = {};
+let currentCallId = null;
+let currentCallRef = null;
+let callTimerInterval = null;
+let callSeconds = 0;
+let isAudioOnlyCall = false;
+let ringtoneOscillator = null;
+const iceServers = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+// Sintetizador Web Audio API para Efectos de Sonido
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playSound(type) {
+  if (audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+
+  if (type === 'sent') {
+    osc.frequency.setValueAtTime(500, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.1);
+  } else if (type === 'received') {
+    osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(400, audioCtx.currentTime + 0.15);
+    gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.15);
+  }
+}
+
+function startRingtone() {
+  if (ringtoneOscillator) return;
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  ringtoneOscillator = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  ringtoneOscillator.type = 'sine';
+  ringtoneOscillator.frequency.setValueAtTime(440, audioCtx.currentTime);
+  gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+  ringtoneOscillator.connect(gain);
+  gain.connect(audioCtx.destination);
+  ringtoneOscillator.start();
+}
+
+function stopRingtone() {
+  if (ringtoneOscillator) {
+    try { ringtoneOscillator.stop(); } catch(e){}
+    ringtoneOscillator = null;
+  }
+}
+
+function cleanName(str) {
+  return str.trim().toLowerCase();
+}
+
+// Iniciar aplicación
+$("startAppBtn").addEventListener("click", () => {
+  const name = $("myUsernameInput").value.trim();
+  if (!name) return alert("Escribe tu nombre.");
+
+  myName = name;
+  $("myProfileText").textContent = "👤 " + myName;
+  $("loginModal").style.display = "none";
+
+  // Cargar fondo personalizado si fue guardado
+  const savedBg = localStorage.getItem("wa_bg_color_" + cleanName(myName));
+  if (savedBg) {
+    $("messagesArea").style.backgroundColor = savedBg;
+    $("bgColorPicker").value = savedBg;
+  }
+
+  loadContactsAndGroups();
+  setTimeout(listenForIncomingCalls, 1000);
+});
+
+// Color de fondo personalizado
+$("bgColorPicker").addEventListener("input", (e) => {
+  const color = e.target.value;
+  $("messagesArea").style.backgroundColor = color;
+  localStorage.setItem("wa_bg_color_" + cleanName(myName), color);
+});
+
+// Contactos & Grupos LocalStorage & Firestore
+$("addContactBtn").addEventListener("click", () => {
+  const friend = $("addContactInput").value.trim();
+  if (!friend) return;
+  if (cleanName(friend) === cleanName(myName)) return alert("No te puedes agregar a ti misma.");
+
+  let contacts = JSON.parse(localStorage.getItem("wa_contacts_" + cleanName(myName)) || "[]");
+  if (!contacts.some(c => cleanName(c) === cleanName(friend))) {
+    contacts.push(friend);
+    localStorage.setItem("wa_contacts_" + cleanName(myName), JSON.stringify(contacts));
+  }
+
+  $("addContactInput").value = "";
+  loadContactsAndGroups();
+  selectChat({ id: getChatId(friend), name: friend, isGroup: false, members: [myName, friend] });
+});
+
+function loadContactsAndGroups() {
+  const listContainer = $("contactList");
+  listContainer.innerHTML = "";
+
+  // Contactos individuales
+  let contacts = JSON.parse(localStorage.getItem("wa_contacts_" + cleanName(myName)) || "[]");
+  contacts.forEach(friend => {
+    const chatId = getChatId(friend);
+    const div = document.createElement("div");
+    const isActive = activeChat && !activeChat.isGroup && activeChat.name === friend;
+    div.className = "contact-item" + (isActive ? " active" : "");
+    div.onclick = () => selectChat({ id: chatId, name: friend, isGroup: false, members: [myName, friend] });
+
+    div.innerHTML = `
+      <div class="avatar">${friend[0].toUpperCase()}</div>
+      <div class="contact-info">
+        <div class="contact-name">${friend}</div>
+        <div class="contact-id">Chat individual</div>
+      </div>
+    `;
+    listContainer.appendChild(div);
+  });
+
+  // Grupos
+  let groups = JSON.parse(localStorage.getItem("wa_groups_" + cleanName(myName)) || "[]");
+  groups.forEach(group => {
+    const div = document.createElement("div");
+    const isActive = activeChat && activeChat.isGroup && activeChat.id === group.id;
+    div.className = "contact-item" + (isActive ? " active" : "");
+    div.onclick = () => selectChat(group);
+
+    div.innerHTML = `
+      <div class="avatar group">👥</div>
+      <div class="contact-info">
+        <div class="contact-name">${group.name}</div>
+        <div class="contact-id">Grupo (${group.members.length} miembros)</div>
+      </div>
+    `;
+    listContainer.appendChild(div);
+  });
+}
+
+// Modal de Creación de Grupo
+$("openGroupModalBtn").addEventListener("click", () => {
+  const contacts = JSON.parse(localStorage.getItem("wa_contacts_" + cleanName(myName)) || "[]");
+  const container = $("groupMembersList");
+  container.innerHTML = "";
+
+  contacts.forEach(c => {
+    const label = document.createElement("label");
+    label.className = "member-checkbox-label";
+    label.innerHTML = `<input type="checkbox" value="${c}"> ${c}`;
+    container.appendChild(label);
+  });
+
+  $("createGroupModal").style.display = "flex";
+});
+
+$("cancelGroupBtn").addEventListener("click", () => {
+  $("createGroupModal").style.display = "none";
+});
+
+$("saveGroupBtn").addEventListener("click", () => {
+  const groupName = $("groupNameInput").value.trim();
+  if (!groupName) return alert("Ingresa un nombre para el grupo.");
+
+  const checkboxes = $("groupMembersList").querySelectorAll("input[type=checkbox]:checked");
+  const selectedMembers = Array.from(checkboxes).map(cb => cb.value);
+  selectedMembers.push(myName); // Agregar al creador
+
+  const groupId = "group_" + Date.now();
+  const newGroup = { id: groupId, name: groupName, isGroup: true, members: selectedMembers };
+
+  let groups = JSON.parse(localStorage.getItem("wa_groups_" + cleanName(myName)) || "[]");
+  groups.push(newGroup);
+  localStorage.setItem("wa_groups_" + cleanName(myName), JSON.stringify(groups));
+
+  $("groupNameInput").value = "";
+  $("createGroupModal").style.display = "none";
+  loadContactsAndGroups();
+  selectChat(newGroup);
+});
+
+function selectChat(chatObj) {
+  activeChat = chatObj;
+  $("activeContactName").textContent = chatObj.name;
+  $("activeContactAvatar").style.display = "flex";
+  $("activeContactAvatar").textContent = chatObj.isGroup ? "👥" : chatObj.name[0].toUpperCase();
+  $("activeContactSub").textContent = chatObj.isGroup ? `Grupo (${chatObj.members.join(", ")})` : "Chat individual";
+
+  $("messageInput").disabled = false;
+  $("sendMessageBtn").disabled = false;
+  $("recordAudioBtn").disabled = false;
+  $("connectionStatus").textContent = "🟢 Conectado";
+
+  $("audioCallBtn").style.display = "flex";
+  $("videoCallBtn").style.display = "flex";
+
+  loadContactsAndGroups();
+  listenToMessages();
+}
+
+function getChatId(friend) {
+  const n1 = cleanName(myName);
+  const n2 = cleanName(friend);
+  return [n1, n2].sort().join("_vs_");
+}
+
+// Escuchar Mensajes en Firestore
+function listenToMessages() {
+  if (unsubscribeMessages) unsubscribeMessages();
+
+  const collectionPath = activeChat.isGroup 
+    ? db.collection("groups").doc(activeChat.id).collection("messages")
+    : db.collection("chats").doc(activeChat.id).collection("messages");
+
+  unsubscribeMessages = collectionPath.onSnapshot(snapshot => {
+    const area = $("messagesArea");
+    let isFirstLoad = area.children.length === 0;
+    area.innerHTML = "";
+
+    let docs = [];
+    snapshot.forEach(doc => docs.push(doc.data()));
+
+    docs.sort((a, b) => {
+      const t1 = a.timestamp ? a.timestamp.toMillis() : 0;
+      const t2 = b.timestamp ? b.timestamp.toMillis() : 0;
+      return t1 - t2;
+    });
+
+    docs.forEach(data => {
+      const isMe = cleanName(data.sender) === cleanName(myName);
+      const msgDiv = document.createElement("div");
+      msgDiv.className = "message-bubble " + (isMe ? "sent" : "received");
+
+      if (activeChat.isGroup && !isMe) {
+        const senderSpan = document.createElement("div");
+        senderSpan.className = "message-sender";
+        senderSpan.textContent = data.sender;
+        msgDiv.appendChild(senderSpan);
+      }
+
+      if (data.type === "audio") {
+        const audioEl = document.createElement("audio");
+        audioEl.controls = true;
+        audioEl.src = data.audioUrl;
+        audioEl.style.maxWidth = "200px";
+        msgDiv.appendChild(audioEl);
+      } else {
+        const textNode = document.createTextNode(data.text);
+        msgDiv.appendChild(textNode);
+      }
+
+      area.appendChild(msgDiv);
+    });
+
+    if (!isFirstLoad && docs.length > 0) {
+      const lastMsg = docs[docs.length - 1];
+      if (cleanName(lastMsg.sender) !== cleanName(myName)) {
+        playSound('received');
+      }
+    }
+
+    area.scrollTop = area.scrollHeight;
+  }, error => {
+    console.error("Error en Firestore:", error);
+    $("connectionStatus").textContent = "🔴 Error de conexión";
+  });
+}
+
+// Enviar Mensaje de Texto
+function sendMessage() {
+  const text = $("messageInput").value.trim();
+  if (!text || !activeChat) return;
+
+  const collectionPath = activeChat.isGroup 
+    ? db.collection("groups").doc(activeChat.id).collection("messages")
+    : db.collection("chats").doc(activeChat.id).collection("messages");
+
+  collectionPath.add({
+    sender: myName,
+    text: text,
+    type: "text",
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  playSound('sent');
+  $("messageInput").value = "";
+  $("emojiPicker").style.display = "none";
+}
+
+$("sendMessageBtn").addEventListener("click", sendMessage);
+$("messageInput").addEventListener("keydown", e => {
+  if (e.key === "Enter") sendMessage();
+});
+
+// Emojis Selector
+$("emojiToggleBtn").addEventListener("click", () => {
+  const picker = $("emojiPicker");
+  picker.style.display = picker.style.display === "none" ? "grid" : "none";
+});
+
+$("emojiPicker").querySelectorAll("span").forEach(emoji => {
+  emoji.addEventListener("click", () => {
+    $("messageInput").value += emoji.textContent;
+    $("messageInput").focus();
+  });
+});
+
+// Grabación de Notas de Audio (Voice Recording)
+$("recordAudioBtn").addEventListener("click", async () => {
+  if (!mediaRecorder || mediaRecorder.state === "inactive") {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+
+      mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(audioBlob);
+        reader.onloadend = () => {
+          const base64Audio = reader.result;
+          sendAudioMessage(base64Audio);
+        };
+      };
+
+      mediaRecorder.start();
+      $("recordAudioBtn").style.background = "#ef4444";
+      $("recordAudioBtn").textContent = "⏹️";
+    } catch (err) {
+      alert("No se pudo acceder al micrófono.");
+    }
+  } else {
+    mediaRecorder.stop();
+    $("recordAudioBtn").style.background = "#2a3942";
+    $("recordAudioBtn").textContent = "🎙️";
+  }
+});
+
+function sendAudioMessage(base64Audio) {
+  if (!activeChat) return;
+
+  const collectionPath = activeChat.isGroup 
+    ? db.collection("groups").doc(activeChat.id).collection("messages")
+    : db.collection("chats").doc(activeChat.id).collection("messages");
+
+  collectionPath.add({
+    sender: myName,
+    audioUrl: base64Audio,
+    type: "audio",
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  playSound('sent');
+}
+
+// ----------------------------------------------------
+// WebRTC SEÑALIZACIÓN Y LLAMADAS (AUDIO Y VIDEO)
+// ----------------------------------------------------
+
+function listenForIncomingCalls() {
+  db.collection("calls")
+    .where("targetUsers", "array-contains", cleanName(myName))
+    .where("status", "==", "ringing")
+    .onSnapshot(snapshot => {
+      snapshot.docChanges().forEach(change => {
+        if (change.type === "added") {
+          const callData = change.doc.data();
+          if (cleanName(callData.caller) !== cleanName(myName)) {
+            showIncomingCall(change.doc.id, callData);
+          }
+        }
+      });
+    });
+}
+
+function showIncomingCall(callId, callData) {
+  currentCallId = callId;
+  currentCallRef = db.collection("calls").doc(callId);
+  isAudioOnlyCall = callData.isVideo === false;
+
+  $("incomingCallTitle").textContent = isAudioOnlyCall ? "📞 Llamada de Voz Entrante" : "📹 Videollamada Entrante";
+  $("incomingCallCaller").textContent = `${callData.caller} en ${callData.chatName || 'Chat'}`;
+  $("incomingCallModal").style.display = "flex";
+  startRingtone();
+}
+
+$("acceptCallBtn").addEventListener("click", async () => {
+  stopRingtone();
+  $("incomingCallModal").style.display = "none";
+  $("activeCallModal").style.display = "flex";
+  
+  await setupMediaStream(!isAudioOnlyCall);
+  await currentCallRef.update({ status: "active" });
+
+  listenToCallSignal(currentCallId);
+  startCallTimer();
+});
+
+$("rejectCallBtn").addEventListener("click", () => {
+  stopRingtone();
+  if (currentCallRef) currentCallRef.update({ status: "rejected" });
+  $("incomingCallModal").style.display = "none";
+});
+
+async function startCall(isVideo = true) {
+  if (!activeChat) return;
+
+  isAudioOnlyCall = !isVideo;
+  const targetUsers = activeChat.isGroup 
+    ? activeChat.members.filter(m => cleanName(m) !== cleanName(myName))
+    : [cleanName(activeChat.name)];
+
+  await setupMediaStream(isVideo);
+  $("activeCallModal").style.display = "flex";
+
+  const callDoc = await db.collection("calls").add({
+    caller: myName,
+    chatName: activeChat.name,
+    targetUsers: targetUsers,
+    isVideo: isVideo,
+    status: "ringing",
+    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+
+  currentCallId = callDoc.id;
+  currentCallRef = callDoc;
+
+  if (!activeChat.isGroup) {
+    createPeerConnection(targetUsers[0]);
+  }
+
+  listenToCallSignal(currentCallId);
+  startCallTimer();
+}
+
+$("audioCallBtn").addEventListener("click", () => startCall(false));
+$("videoCallBtn").addEventListener("click", () => startCall(true));
+
+async function setupMediaStream(isVideo) {
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: isVideo,
+      audio: true
+    });
+    $("localVideo").srcObject = localStream;
+  } catch (err) {
+    console.error("Error al acceder a los dispositivos multimedia:", err);
+    alert("No se pudo iniciar cámara/micrófono.");
+  }
+}
+
+function createPeerConnection(targetUser) {
+  if (peerConnections[targetUser]) return peerConnections[targetUser];
+
+  const pc = new RTCPeerConnection(iceServers);
+  peerConnections[targetUser] = pc;
+
+  if (localStream) {
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+  }
+
+  pc.ontrack = event => {
+    let remoteVideo = document.getElementById(`video_${targetUser}`);
+    if (!remoteVideo) {
+      const container = document.createElement("div");
+      container.id = `container_${targetUser}`;
+      container.style.cssText = "position:relative; background:#202c33; border-radius:8px; overflow:hidden; aspect-ratio:4/3; display:flex; align-items:center; justify-content:center;";
+
+      remoteVideo = document.createElement("video");
+      remoteVideo.id = `video_${targetUser}`;
+      remoteVideo.autoplay = true;
+      remoteVideo.playsinline = true;
+      remoteVideo.style.cssText = "width:100%; height:100%; object-fit:cover;";
+
+      const label = document.createElement("span");
+      label.style.cssText = "position:absolute; bottom:6px; left:6px; background:rgba(0,0,0,0.6); padding:2px 6px; border-radius:4px; font-size:11px;";
+      label.textContent = targetUser;
+
+      container.appendChild(remoteVideo);
+      container.appendChild(label);
+      $("videoGrid").appendChild(container);
+    }
+    remoteVideo.srcObject = event.streams[0];
+  };
+
+  pc.onicecandidate = event => {
+    if (event.candidate && currentCallRef) {
+      currentCallRef.collection("candidates").add({
+        sender: cleanName(myName),
+        target: targetUser,
+        candidate: event.candidate.toJSON()
+      });
+    }
+  };
+
+  pc.onnegotiationneeded = async () => {
+    try {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      currentCallRef.collection("offers").add({
+        sender: cleanName(myName),
+        target: targetUser,
+        offer: { type: offer.type, sdp: offer.sdp }
+      });
+    } catch (err) {
+      console.error("Error WebRTC:", err);
+    }
+  };
+
+  return pc;
+}
+
+function listenToCallSignal(callId) {
+  const callRef = db.collection("calls").doc(callId);
+
+  callRef.onSnapshot(doc => {
+    if (doc.exists && doc.data().status === "ended") {
+      endCallUI();
+    }
+  });
+
+  callRef.collection("offers").onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(async change => {
+      if (change.type === "added") {
+        const data = change.doc.data();
+        if (cleanName(data.target) === cleanName(myName)) {
+          const pc = createPeerConnection(data.sender);
+          await pc.setRemoteDescription(new RTCSessionDescription(data.offer));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+
+          callRef.collection("answers").add({
+            sender: cleanName(myName),
+            target: data.sender,
+            answer: { type: answer.type, sdp: answer.sdp }
+          });
+        }
+      }
+    });
+  });
+
+  callRef.collection("answers").onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(async change => {
+      if (change.type === "added") {
+        const data = change.doc.data();
+        if (cleanName(data.target) === cleanName(myName)) {
+          const pc = peerConnections[data.sender];
+          if (pc) {
+            await pc.setRemoteDescription(new RTCSessionDescription(data.answer));
+          }
+        }
+      }
+    });
+  });
+
+  callRef.collection("candidates").onSnapshot(snapshot => {
+    snapshot.docChanges().forEach(async change => {
+      if (change.type === "added") {
+        const data = change.doc.data();
+        if (cleanName(data.target) === cleanName(myName)) {
+          const pc = peerConnections[data.sender];
+          if (pc) {
+            await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
+          }
+        }
+      }
+    });
+  });
+}
+
+$("toggleMicBtn").addEventListener("click", () => {
+  if (localStream) {
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      $("toggleMicBtn").style.background = audioTrack.enabled ? "#202c33" : "#ef4444";
+    }
+  }
+});
+
+$("toggleCamBtn").addEventListener("click", () => {
+  if (localStream) {
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.enabled = !videoTrack.enabled;
+      $("toggleCamBtn").style.background = videoTrack.enabled ? "#202c33" : "#ef4444";
+    }
+  }
+});
+
+$("hangupBtn").addEventListener("click", () => {
+  if (currentCallRef) {
+    currentCallRef.update({ status: "ended" });
+  }
+  endCallUI();
+});
+
+function startCallTimer() {
+  callSeconds = 0;
+  clearInterval(callTimerInterval);
+  callTimerInterval = setInterval(() => {
+    callSeconds++;
+    const mins = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+    const secs = String(callSeconds % 60).padStart(2, '0');
+    $("callTimer").textContent = `${mins}:${secs}`;
+  }, 1000);
+}
+
+function endCallUI() {
+  stopRingtone();
+  clearInterval(callTimerInterval);
+
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+    localStream = null;
+  }
+
+  Object.values(peerConnections).forEach(pc => pc.close());
+  peerConnections = {};
+
+  $("videoGrid").innerHTML = `
+    <div style="position: relative; background: #202c33; border-radius: 8px; overflow: hidden; aspect-ratio: 4/3; display: flex; align-items: center; justify-content: center;">
+      <video id="localVideo" autoplay muted playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+      <span style="position: absolute; bottom: 6px; left: 6px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; font-size: 11px;">Tú</span>
+    </div>
+  `;
+
+  $("activeCallModal").style.display = "none";
+  $("incomingCallModal").style.display = "none";
+  currentCallId = null;
+  currentCallRef = null;
+}
+</script>
+</body>
+</html>
